@@ -20,6 +20,10 @@
 
 param($ProjectName, $IntermediateOutputPath, $OutDir, $PublishDir, $LinuxRID = 'debian.11', $OsxRID = 'osx.11')
 
+$ProjectName = "SQLiteConnection"
+$OutDir = "Out"
+$PublishDir = "MyPublish"
+
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 $compatiblePSEdition = 'Core'
@@ -82,7 +86,10 @@ foreach ($A in 'x64', 'arm64', 'x86', 'arm')
 		{
 			$null = New-Item -Path $PublishDir -Name "$DEST-$A" -ItemType 'directory'
 
-			$null = Move-Item -Path "$PublishDir/runtimes/$SRC-$A/native/$SQLINTEROP" -Destination "$PublishDir$DEST-$A/$SQLINTEROP.$EXT"
+			Write-Output "tomxue - 1"
+			Write-Output $PublishDir/runtimes/$SRC-$A/native/$SQLINTEROP 
+			Write-Output $PublishDir$DEST-$A/$SQLINTEROP.$EXT
+			$null = Move-Item -Path "$PublishDir/runtimes/$SRC-$A/native/$SQLINTEROP" -Destination "$PublishDir/$DEST-$A/$SQLINTEROP.$EXT"
 		}
 	}
 }
@@ -105,6 +112,124 @@ $moduleSettings = @{
 	VariablesToExport = '*'
 	AliasesToExport = @()
 	ProjectUri = $ProjectUri
+}
+
+function Get-IdentedString {
+    <#
+    .SYNOPSIS
+    Returns $obj as indented string
+    .DESCRIPTION
+    Turns $obj to string and adds $indent * 4 spaces in front of it
+    .PARAMETER obj
+    Object to be converted to String
+    .PARAMETER indent
+    How many whitespaces * 4 to indent
+    .EXAMPLE
+    Get-IdentedString "Test" 1
+    >>> "    Test"
+    #>
+    param (
+        $obj,
+        [int]$indent = 0
+    )
+    return "{0,$($indent *4)}{1}" -f "", $obj
+}
+
+function Convert-Array ($obj, [int]$indent = 0, [switch]$SkipIndentOnce) {
+    if ($SkipIndentOnce) {
+        $out += Get-IdentedString "@(`n" -indent 0
+    }
+    else {
+        $out = Get-IdentedString "@(`n" -indent $indent
+    }
+    foreach ($elem in $obj) {
+        $out += Convert-Element -obj $elem -indent $($indent + 1)
+        $out += "`n"
+    }
+    $out += Get-IdentedString ")" -indent $indent
+    return $out
+}
+
+function Convert-Int ($obj, [int]$indent = 0, [switch]$SkipIndentOnce) {
+    if ($SkipIndentOnce) {
+        return Get-IdentedString "$obj" -indent 0
+    }
+    else {
+        return Get-IdentedString "$obj" -indent $indent
+    }
+}
+
+function Convert-String ($obj, [int]$indent = 0, [switch]$SkipIndentOnce) {
+    if ($SkipIndentOnce) {
+        return Get-IdentedString "`"$obj`"" -indent 0
+    }
+    else {
+        return Get-IdentedString "`"$obj`"" -indent $indent
+    }
+}
+
+function Convert-Element {
+    param (
+        $obj,
+        [int]$indent = 0,
+        [switch]$SkipIndentOnce
+    )
+    $paramObj = @{
+        obj    = $obj
+        indent = $indent
+    }
+    if ($SkipIndentOnce) {
+        $paramObj["SkipIndentOnce"] = $true
+    }
+    switch -Regex ($obj.GetType().Name) {
+        "Object\[\]" {return Convert-Array @paramObj}
+        "Hashtable" {return Convert-Hashtable @paramObj}
+        'Int\d+' {return Convert-Int @paramObj}
+        default {return Convert-String @paramObj}
+    }
+}
+
+function Convert-Hashtable ($obj, $indent = 0, [switch]$SkipIndentOnce) {
+    if ($SkipIndentOnce) {
+        return Get-IdentedString "@{`n" -indent 0
+    }
+    else {
+        $out = Get-IdentedString "@{`n" -indent $indent
+    }
+    $indent += 1
+    foreach ($key in $obj.Keys) {
+        $out += Convert-Element -obj $key -indent $indent
+        $out += " = "
+        $out += Convert-Element -obj $obj[$key] -indent $indent -SkipIndentOnce
+        $out += "`n"
+    }
+    $indent -= 1
+    $out += Get-IdentedString "}`n" -indent $indent
+    return $out
+}
+
+function Export-PowerShellDataFile {
+    param (
+        [Parameter(
+            Position = 0,
+            Mandatory = $true,
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $true)
+        ]$Obj,
+        $Path,
+        [switch]$NoClobber
+    )
+
+    if ($Path) {
+        if ($NoClobber -and $(Test-Path $Path)) {
+            Write-Error "File exists" -ErrorAction Stop
+        }
+
+        Convert-Element -obj $Obj | Out-File $Path
+    }
+    else {
+        Convert-Element -obj $Obj | Write-Output
+    }
 }
 
 New-ModuleManifest @moduleSettings
