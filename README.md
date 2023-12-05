@@ -29,3 +29,8 @@ CONTENT
 Hello World
 
 ```
+
+
+tomxue:
+	(1) powershell.exe -executionpolicy bypass -file .\package.ps1
+	(2) Delete or rename folder MyPublish, then run: dotnet publish SQLiteConnection.csproj --configuration Release
