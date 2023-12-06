@@ -23,6 +23,9 @@ param(
 	$CommandText = 'SELECT * FROM MESSAGES'
 )
 
+# Import the PSSQLite module
+Import-Module -Name PSSQLite
+
 $ErrorActionPreference = "Stop"
 
 trap
@@ -35,7 +38,7 @@ if (-not(Test-Path "test.db"))
 	@"
 CREATE TABLE MESSAGES (CONTENT VARCHAR(256));
 INSERT INTO MESSAGES (CONTENT) VALUES ('Hello World');
-"@ | & sqlite3 test.db
+"@ | & C:\Users\xuejd1\AppData\Local\anaconda3\Library\bin\sqlite3.exe test.db
 
 	If ( $LastExitCode -ne 0 )
 	{
@@ -43,7 +46,8 @@ INSERT INTO MESSAGES (CONTENT) VALUES ('Hello World');
 	}
 }
 
-$Connection = New-SQLiteConnection -ConnectionString $ConnectionString
+$ConStrSecure = ConvertTo-SecureString 'Data Source=D:\workspace\Vantage\arm64-transplant\SQLiteConnection\test.db;' -asplaintext -force
+$Connection = New-SQLiteConnection ConnectionString $ConStrSecure
 
 try
 {
@@ -52,6 +56,7 @@ try
 	$Command = $Connection.CreateCommand()
 
 	$Command.CommandText = $CommandText
+	# $Command.CommandText = 'SELECT * FROM MESSAGES'
 
 	$Reader = $Command.ExecuteReader()
 
